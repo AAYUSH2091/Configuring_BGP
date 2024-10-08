@@ -1,0 +1,116 @@
+- name: Configure BGP on Cisco NX-OS router nxos-02
+  hosts: nxos-01
+  gather_facts: false
+  tasks:
+  
+
+    - name: configuring bgp in nxos-01
+      cisco.nxos.nxos_bgp_global:
+        config:
+          router_id: "1.1.1.1"
+          as_number: 65000
+          
+          neighbors:
+              - neighbor_address: 192.168.255.189
+                remote_as: 65001
+        
+
+    
+
+- name: Configure BGP on Cisco NX-OS router nxos-02
+  hosts: nxos-02
+  gather_facts: no
+  tasks:
+  
+   
+    - name: config bgp in nxos-02
+      cisco.nxos.nxos_bgp_global:
+        config:
+          router_id: "2.2.2.2"
+          
+          as_number: 65001
+          neighbors:
+              - neighbor_address: 192.168.255.201
+                remote_as: 65000
+                
+
+- name: configure address family in bgp
+  hosts: nx_os
+  gather_facts: no
+  tasks:
+    - name: config
+      cisco.nxos.nxos_bgp_address_family:
+        config:
+          address_family:
+            - afi: ipv4
+              safi: unicast
+              
+- name: configuring neighbor address family in nxos-01
+  hosts: nxos-01
+  gather_facts: false
+  tasks: 
+    - name: config address family in neighbor
+      cisco.nxos.nxos_bgp_neighbor_address_family:
+        config:
+          as_number: 65000
+          neighbors:
+            - neighbor_address: 192.168.255.189
+              address_family:
+                - afi: ipv4
+                  safi: unicast
+
+- name: configuring neighbor address family in nxos-02
+  hosts: nxos-02
+  gather_facts: no
+  tasks: 
+    - name: config address family in neighbor
+      cisco.nxos.nxos_bgp_neighbor_address_family:
+        config:
+          as_number: 65001
+          neighbors:
+            - neighbor_address: 192.168.255.201
+              address_family:
+                - afi: ipv4
+                  safi: unicast
+
+
+
+
+- name: Check BGP Status
+  hosts: nxos-01
+  gather_facts: no
+  vars:
+    ansible_network_os: nxos
+    ansible_connection: network_cli
+
+  tasks:
+    - name: Run show ip bgp summary
+      cisco.nxos.nxos_command:
+        commands: show ip bgp summary
+      register: bgp_output
+
+    - name: Debug raw output
+      debug:
+        var: bgp_output.stdout_lines
+
+    - name: Parse BGP neighbors state
+      set_fact:
+        bgp_neighbors: "{{ bgp_output.stdout[0] | regex_findall('\\d+\\.\\d+\\.\\d+\\.\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+(\\d+|\\d+:\\d+:\\d+)') }}"
+
+    - name: Determine BGP status
+      set_fact:
+        bgp_up: "{{ bgp_neighbors | select('match', '^\\d+$') | list | length > 0 }}"
+
+    - name: Display BGP status
+      debug:
+        msg: "BGP is {{ 'up' if bgp_up else 'down' }}"
+
+    - name: Assert BGP is up
+      assert:
+        that: bgp_up
+        fail_msg: "BGP is not up"
+        success_msg: "BGP is up and running"
+
+    - name: Show BGP neighbor states
+      debug:
+        msg: "BGP neighbor states: {{ bgp_neighbors }}"
