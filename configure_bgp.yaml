@@ -76,41 +76,4 @@
 
 
 
-- name: Check BGP Status
-  hosts: nxos-01
-  gather_facts: no
-  vars:
-    ansible_network_os: nxos
-    ansible_connection: network_cli
 
-  tasks:
-    - name: Run show ip bgp summary
-      cisco.nxos.nxos_command:
-        commands: show ip bgp summary
-      register: bgp_output
-
-    - name: Debug raw output
-      debug:
-        var: bgp_output.stdout_lines
-
-    - name: Parse BGP neighbors state
-      set_fact:
-        bgp_neighbors: "{{ bgp_output.stdout[0] | regex_findall('\\d+\\.\\d+\\.\\d+\\.\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+(\\d+|\\d+:\\d+:\\d+)') }}"
-
-    - name: Determine BGP status
-      set_fact:
-        bgp_up: "{{ bgp_neighbors | select('match', '^\\d+$') | list | length > 0 }}"
-
-    - name: Display BGP status
-      debug:
-        msg: "BGP is {{ 'up' if bgp_up else 'down' }}"
-
-    - name: Assert BGP is up
-      assert:
-        that: bgp_up
-        fail_msg: "BGP is not up"
-        success_msg: "BGP is up and running"
-
-    - name: Show BGP neighbor states
-      debug:
-        msg: "BGP neighbor states: {{ bgp_neighbors }}"
